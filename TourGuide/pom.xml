@@ -65,7 +65,13 @@
 			<version>1.0.0</version>
 		</dependency>
 	</dependencies>
-
+	<repositories>
+		<repository>
+			<id>local-libs</id>
+			<name>local-libs</name>
+			<url>file://${project.basedir}/libs</url>
+		</repository>
+	</repositories>
 	<build>
 		<plugins>
 			<plugin>
