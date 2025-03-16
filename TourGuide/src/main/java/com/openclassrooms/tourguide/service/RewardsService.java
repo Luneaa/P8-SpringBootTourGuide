@@ -1,6 +1,8 @@
 package com.openclassrooms.tourguide.service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 import org.springframework.stereotype.Service;
 
@@ -22,10 +24,14 @@ public class RewardsService {
 	private int attractionProximityRange = 200;
 	private final GpsUtil gpsUtil;
 	private final RewardCentral rewardsCentral;
+
+	private final List<Attraction> attractions;
+	private final ExecutorService executorService = Executors.newFixedThreadPool(64);
 	
 	public RewardsService(GpsUtil gpsUtil, RewardCentral rewardCentral) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsCentral = rewardCentral;
+		this.attractions = this.gpsUtil.getAttractions();
 	}
 	
 	public void setProximityBuffer(int proximityBuffer) {
@@ -35,18 +41,25 @@ public class RewardsService {
 	public void setDefaultProximityBuffer() {
 		proximityBuffer = defaultProximityBuffer;
 	}
-	
-	public void calculateRewards(User user) {
+
+	public CompletableFuture<Void> calculateRewards(User user) {
 		List<VisitedLocation> userLocations = user.getVisitedLocations();
-		List<Attraction> attractions = gpsUtil.getAttractions();
-		
+		List<CompletableFuture<Object>> result = new ArrayList<>();
+
 		for(VisitedLocation visitedLocation : userLocations) {
 			for(Attraction attraction : attractions) {
 				if(nearAttraction(visitedLocation, attraction)) {
-					user.addUserReward(new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
+					var future = getRewardPoints(attraction, user).thenApply(rewardPoints ->
+					{
+						user.addUserReward(new UserReward(visitedLocation, attraction, rewardPoints));
+						return null;
+					});
+					result.add(future);
 				}
 			}
 		}
+
+		return CompletableFuture.allOf(result.toArray(new CompletableFuture[0]));
 	}
 	
 	public boolean isWithinAttractionProximity(Attraction attraction, Location location) {
@@ -57,8 +70,10 @@ public class RewardsService {
 		return getDistance(attraction, visitedLocation.location) <= proximityBuffer;
 	}
 	
-	private int getRewardPoints(Attraction attraction, User user) {
-		return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
+	private CompletableFuture<Integer> getRewardPoints(Attraction attraction, User user) {
+		return CompletableFuture.supplyAsync(() -> {
+            return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
+        }, executorService);
 	}
 	
 	public double getDistance(Location loc1, Location loc2) {

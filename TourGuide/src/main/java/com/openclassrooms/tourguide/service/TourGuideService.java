@@ -7,14 +7,11 @@ import com.openclassrooms.tourguide.user.UserReward;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -32,17 +29,23 @@ import tripPricer.TripPricer;
 
 @Service
 public class TourGuideService {
+	private static final int CLOSEST_ATTRACTIONS_COUNT = 5;
 	private Logger logger = LoggerFactory.getLogger(TourGuideService.class);
 	private final GpsUtil gpsUtil;
 	private final RewardsService rewardsService;
+	private final ExecutorService executorService = Executors.newFixedThreadPool(64);
 	private final TripPricer tripPricer = new TripPricer();
+
+	private final List<Attraction> attractions;
 	public final Tracker tracker;
 	boolean testMode = true;
 
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
-		
+
+		this.attractions = this.gpsUtil.getAttractions();
+
 		Locale.setDefault(Locale.US);
 
 		if (testMode) {
@@ -59,10 +62,15 @@ public class TourGuideService {
 		return user.getUserRewards();
 	}
 
-	public VisitedLocation getUserLocation(User user) {
-		VisitedLocation visitedLocation = (user.getVisitedLocations().size() > 0) ? user.getLastVisitedLocation()
-				: trackUserLocation(user);
-		return visitedLocation;
+	public CompletableFuture<VisitedLocation> getUserLocation(User user) {
+        if (!user.getVisitedLocations().isEmpty())
+		{
+			return CompletableFuture.supplyAsync(user::getLastVisitedLocation, executorService);
+		}
+        else
+		{
+			return trackUserLocation(user);
+		}
 	}
 
 	public User getUser(String userName) {
@@ -88,22 +96,29 @@ public class TourGuideService {
 		return providers;
 	}
 
-	public VisitedLocation trackUserLocation(User user) {
-		VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
-		user.addToVisitedLocations(visitedLocation);
-		rewardsService.calculateRewards(user);
-		return visitedLocation;
+	public CompletableFuture<VisitedLocation> trackUserLocation(User user) {
+		return CompletableFuture.supplyAsync(() -> {
+			VisitedLocation visitedLocation = gpsUtil.getUserLocation(user.getUserId());
+			user.addToVisitedLocations(visitedLocation);
+            try {
+                rewardsService.calculateRewards(user).get();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+            return visitedLocation;
+		}, executorService);
 	}
 
+	/**
+     * Returns the five closest attractions from the given location
+     */
 	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
-		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
-		}
-
-		return nearbyAttractions;
+		return gpsUtil.getAttractions().stream()
+				.sorted(Comparator.comparingDouble(a -> rewardsService.getDistance(a, visitedLocation.location)))
+				.limit(CLOSEST_ATTRACTIONS_COUNT)
+				.toList();
 	}
 
 	private void addShutDownHook() {

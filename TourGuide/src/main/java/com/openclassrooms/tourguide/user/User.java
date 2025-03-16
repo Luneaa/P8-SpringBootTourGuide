@@ -16,7 +16,7 @@ public class User {
 	private String emailAddress;
 	private Date latestLocationTimestamp;
 	private CopyOnWriteArrayList<VisitedLocation> visitedLocations = new CopyOnWriteArrayList<>();
-	private List<UserReward> userRewards = new ArrayList<>();
+	private CopyOnWriteArrayList<UserReward> userRewards = new CopyOnWriteArrayList<>();
 	private UserPreferences userPreferences = new UserPreferences();
 	private List<Provider> tripDeals = new ArrayList<>();
 	public User(UUID userId, String userName, String phoneNumber, String emailAddress) {
