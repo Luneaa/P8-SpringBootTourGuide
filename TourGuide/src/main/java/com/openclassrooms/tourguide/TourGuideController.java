@@ -2,7 +2,10 @@ package com.openclassrooms.tourguide;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
+import com.openclassrooms.tourguide.service.RewardsService;
+import gpsUtil.location.Location;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +25,9 @@ public class TourGuideController {
 
 	@Autowired
 	TourGuideService tourGuideService;
+
+    @Autowired
+    RewardsService rewardsService;
 	
     @RequestMapping("/")
     public String index() {
@@ -43,9 +49,29 @@ public class TourGuideController {
         // The reward points for visiting each Attraction.
         //    Note: Attraction reward points can be gathered from RewardsCentral
     @RequestMapping("/getNearbyAttractions") 
-    public CompletableFuture<List<Attraction>> getNearbyAttractions(@RequestParam String userName) {
-    	CompletableFuture<VisitedLocation> visitedLocation = tourGuideService.getUserLocation(getUser(userName));
-        return visitedLocation.thenApply(locations -> tourGuideService.getNearByAttractions(locations));
+    public CompletableFuture<List<TouristAttractionInformation>> getNearbyAttractions(@RequestParam String userName) {
+        var user = getUser(userName);
+
+        // we get the user's visited locations
+    	CompletableFuture<VisitedLocation> visitedLocation = tourGuideService.getUserLocation(user);
+
+        // For each location we create an object with the required information
+        return visitedLocation.thenApply(userLocation -> tourGuideService.getNearByAttractions(userLocation)
+            .stream().map(attraction -> {
+                    try {
+                        return new TouristAttractionInformation(
+                                attraction.attractionName,
+                                new Location(attraction.latitude, attraction.longitude),
+                                userLocation.location,
+                                rewardsService.getDistance(userLocation.location, attraction),
+                                rewardsService.getRewardPoints(attraction, user).get()
+                        );
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    } catch (ExecutionException e) {
+                        throw new RuntimeException(e);
+                    }
+                }).toList());
     }
     
     @RequestMapping("/getRewards") 

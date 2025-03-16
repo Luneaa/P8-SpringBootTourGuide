@@ -70,7 +70,7 @@ public class RewardsService {
 		return getDistance(attraction, visitedLocation.location) <= proximityBuffer;
 	}
 	
-	private CompletableFuture<Integer> getRewardPoints(Attraction attraction, User user) {
+	public CompletableFuture<Integer> getRewardPoints(Attraction attraction, User user) {
 		return CompletableFuture.supplyAsync(() -> {
             return rewardsCentral.getAttractionRewardPoints(attraction.attractionId, user.getUserId());
         }, executorService);
