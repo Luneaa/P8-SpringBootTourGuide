@@ -20,34 +20,48 @@ import com.openclassrooms.tourguide.user.UserReward;
 
 import tripPricer.Provider;
 
+/**
+ * Tour guide controller
+ */
 @RestController
 public class TourGuideController {
 
+    /**
+     * Tour guide service instance
+     */
 	@Autowired
 	TourGuideService tourGuideService;
 
+    /**
+     * Reward service instance
+     */
     @Autowired
     RewardsService rewardsService;
-	
+
+    /**
+     * Root controller route
+     * @return welcome message
+     */
     @RequestMapping("/")
     public String index() {
         return "Greetings from TourGuide!";
     }
-    
+
+    /**
+     * GetLocation api route
+     * @param userName user to get the location from
+     * @return async visited location
+     */
     @RequestMapping("/getLocation") 
     public CompletableFuture<VisitedLocation> getLocation(@RequestParam String userName) {
     	return tourGuideService.getUserLocation(getUser(userName));
     }
-    
-    //  TODO: Change this method to no longer return a List of Attractions.
- 	//  Instead: Get the closest five tourist attractions to the user - no matter how far away they are.
- 	//  Return a new JSON object that contains:
-    	// Name of Tourist attraction, 
-        // Tourist attractions lat/long, 
-        // The user's location lat/long, 
-        // The distance in miles between the user's location and each of the attractions.
-        // The reward points for visiting each Attraction.
-        //    Note: Attraction reward points can be gathered from RewardsCentral
+
+    /**
+     * Returns the nearby attraction for the given username
+     * @param userName username to look up
+     * @return async list of all the nearby attractions with required informations
+     */
     @RequestMapping("/getNearbyAttractions") 
     public CompletableFuture<List<TouristAttractionInformation>> getNearbyAttractions(@RequestParam String userName) {
         var user = getUser(userName);
@@ -73,20 +87,33 @@ public class TourGuideController {
                     }
                 }).toList());
     }
-    
+
+    /**
+     * Gets all the rewards for the given user
+     * @param userName username of the user to check
+     * @return list of all the user's rewards
+     */
     @RequestMapping("/getRewards") 
     public List<UserReward> getRewards(@RequestParam String userName) {
     	return tourGuideService.getUserRewards(getUser(userName));
     }
-       
+
+    /**
+     * Gets all the trip deals for a given user
+     * @param userName username of the user to check
+     * @return list of all the user's trip deals
+     */
     @RequestMapping("/getTripDeals")
     public List<Provider> getTripDeals(@RequestParam String userName) {
     	return tourGuideService.getTripDeals(getUser(userName));
     }
-    
+
+    /**
+     * Get a user based on its username
+     * @param userName username to look up
+     * @return found user matching the username
+     */
     private User getUser(String userName) {
     	return tourGuideService.getUser(userName);
     }
-   
-
 }
