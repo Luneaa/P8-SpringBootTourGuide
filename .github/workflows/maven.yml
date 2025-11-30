@@ -69,7 +69,7 @@ jobs:
         mvn install:install-file -Dfile="TourGuide/libs/TripPricer.jar" -DgroupId=tripPricer -DartifactId=tripPricer -Dversion=1.0.0 -Dpackaging=jar
     - name: Package with Maven
       run: mvn -f TourGuide/pom.xml -B package
-    - run: mkdir staging && cp target/*.jar staging
+    - run: mkdir staging && cp TourGuide/target/*.jar staging
     - uses: actions/upload-artifact@v4
       with:
         name: Package
